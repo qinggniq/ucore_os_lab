@@ -27,7 +27,6 @@ static void print_ticks() {
  * */
 static struct gatedesc idt[256] = {{0}};
 extern uintptr_t __vectors[];
-static int timer_cnt = 0;
 static struct pseudodesc idt_pd = {
     sizeof(idt) - 1, (uintptr_t)idt
 };
@@ -48,9 +47,10 @@ idt_init(void) {
       *     Notice: the argument of lidt is idt_pd. try to find it!
       */
      for (int i=0; i <= 255; i++) {
-         SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], 0);
+         SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
      }
-     SETGATE(idt[T_SYSCALL], 1, T_SYSCALL, __vectors[T_SYSCALL], 3);
+     SETGATE(idt[T_SWITCH_TOU], 1, GD_KTEXT, __vectors[T_SWITCH_TOU], DPL_USER);
+     SETGATE(idt[T_SYSCALL], 1, GD_KTEXT,  __vectors[T_SYSCALL], DPL_USER);
      lidt(&idt_pd);
 
 }
@@ -169,7 +169,16 @@ trap_dispatch(struct trapframe *tf) {
         break;
     //LAB1 CHALLENGE 1 : YOUR CODE you should modify below codes.
     case T_SWITCH_TOU:
+        // if (trap_in_kernel(tf)) {
+        //     tf->tf_ss &= ~(DPL_KERNEL);
+        //     tf->tf_ss |= (DPL_USER);
+        //     tf->tf_cs &= ~(DPL_KERNEL);
+        //     tf->tf_ss |= (DPL_USER);
+        // }
     case T_SWITCH_TOK:
+        // if (!trap_in_kernel(tf)) {
+
+        // } 
         panic("T_SWITCH_** ??\n");
         break;
     case IRQ_OFFSET + IRQ_IDE1:

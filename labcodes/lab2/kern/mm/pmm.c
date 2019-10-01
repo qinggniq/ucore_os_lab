@@ -347,18 +347,35 @@ get_pte(pde_t *pgdir, uintptr_t la, bool create) {
      *   PTE_W           0x002                   // page table/directory entry flags bit : Writeable
      *   PTE_U           0x004                   // page table/directory entry flags bit : User can access
      */
-#if 0
-    pde_t *pdep = NULL;   // (1) find page directory entry
-    if (0) {              // (2) check if entry is not present
-                          // (3) check if creating is needed, then alloc page for page table
-                          // CAUTION: this page is used for page table, not for common data page
-                          // (4) set page reference
-        uintptr_t pa = 0; // (5) get linear address of page
-                          // (6) clear page content using memset
-                          // (7) set page directory entry's permission
-    }
-    return NULL;          // (8) return page table entry
-#endif
+
+	pde_t* pdep = &pgdir[PDX(la)];
+	if (!(*pdep & PTE_P)) {
+		if (create) {
+			struct Page *page = alloc_page();
+			if (page == NULL) {
+				return NULL;
+			}
+			set_page_ref(page, 1);
+			uintptr_t pa = page2pa(page);
+			memset(KADDR(pa), 0, PGSIZE);
+			*pdep = pa| PTE_USER;
+		} else {
+			return NULL;
+		}
+	}
+	uintptr_t* pt_va = KADDR(PDE_ADDR(*pdep));
+	//cprintf("here \n");
+	pte_t* ptep = &pt_va[PTX(la)];		 //&((void *)(PDE_ADDR(*pdep))[PTX(la)]);
+	return ptep;
+										 // (3) check if creating is needed, then alloc page for page table
+										 // CAUTION: this page is used for page table, not for common data page
+										 // (4) set page reference
+										 // (5) get linear address of page
+										 // (6) clear page content using memset
+										 // (7) set page directory entry's permission
+	
+										// (8) return page table entry
+
 }
 
 //get_page - get related Page struct for linear address la using PDT pgdir
@@ -395,6 +412,16 @@ page_remove_pte(pde_t *pgdir, uintptr_t la, pte_t *ptep) {
      * DEFINEs:
      *   PTE_P           0x001                   // page table/directory entry flags bit : Present
      */
+	if ((*ptep & PTE_P)) {
+		struct Page *page = pte2page(*ptep);
+		if (page == NULL) return;
+		page_ref_dec(page);
+		if (page->ref == 0) {
+			free_page(page);
+			tlb_invalidate(pgdir, la);
+		}	
+	}
+	((pte_t *)KADDR(PDE_ADDR(pgdir[PDX(la)])))[PTX(la)] = NULL;
 #if 0
     if (0) {                      //(1) check if this page table entry is present
         struct Page *page = NULL; //(2) find corresponding page to pte
