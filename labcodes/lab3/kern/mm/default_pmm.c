@@ -2,6 +2,7 @@
 #include <list.h>
 #include <string.h>
 #include <default_pmm.h>
+#include <stdio.h>
 
 /*  In the First Fit algorithm, the allocator keeps a list of free blocks
  * (known as the free list). Once receiving a allocation request for memory,
@@ -113,10 +114,11 @@ default_init_memmap(struct Page *base, size_t n) {
         p->flags = p->property = 0;
         set_page_ref(p, 0);
     }
-    base->property = n;
     SetPageProperty(base);
+    base->property = n;
+
     nr_free += n;
-    list_add(&free_list, &(base->page_link));
+    list_add_before(&free_list, &(base->page_link));
 }
 
 static struct Page *
@@ -134,13 +136,15 @@ default_alloc_pages(size_t n) {
             break;
         }
     }
+	
     if (page != NULL) {
-        list_del(&(page->page_link));
         if (page->property > n) {
             struct Page *p = page + n;
+            SetPageProperty(p);
             p->property = page->property - n;
-            list_add(&free_list, &(p->page_link));
-    }
+            list_add(&(page->page_link), &(p->page_link));
+		}
+		list_del(&(page->page_link));
         nr_free -= n;
         ClearPageProperty(page);
     }
@@ -159,23 +163,31 @@ default_free_pages(struct Page *base, size_t n) {
     base->property = n;
     SetPageProperty(base);
     list_entry_t *le = list_next(&free_list);
+    list_entry_t *nxt = &free_list;
     while (le != &free_list) {
         p = le2page(le, page_link);
         le = list_next(le);
         if (base + base->property == p) {
             base->property += p->property;
+            p->property = 0;
             ClearPageProperty(p);
+	    nxt = (p->page_link).next;
             list_del(&(p->page_link));
         }
         else if (p + p->property == base) {
             p->property += base->property;
+            base->property = 0;
             ClearPageProperty(base);
             base = p;
+	    nxt = (p->page_link).next;
             list_del(&(p->page_link));
-        }
+        }else if (base + base->property < p && nxt == NULL) {
+			nxt = le;
+			break;
+		}         
     }
     nr_free += n;
-    list_add(&free_list, &(base->page_link));
+    list_add_before(nxt, &(base->page_link));
 }
 
 static size_t
