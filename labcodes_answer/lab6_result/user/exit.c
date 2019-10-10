@@ -1,34 +1,29 @@
 #include <stdio.h>
 #include <ulib.h>
 
-int magic = -0x10384;
-
 int
 main(void) {
-    int pid, code;
+    int pid, ret;
     cprintf("I am the parent. Forking the child...\n");
     if ((pid = fork()) == 0) {
-        cprintf("I am the child.\n");
-        yield();
-        yield();
-        yield();
-        yield();
-        yield();
-        yield();
-        yield();
-        exit(magic);
+        cprintf("I am the child. spinning ...\n");
+        while (1);
     }
-    else {
-        cprintf("I am parent, fork a child pid %d\n",pid);
-    }
-    assert(pid > 0);
-    cprintf("I am the parent, waiting now..\n");
+    cprintf("I am the parent. Running the child...\n");
 
-    assert(waitpid(pid, &code) == 0 && code == magic);
-    assert(waitpid(pid, &code) != 0 && wait() != 0);
-    cprintf("waitpid %d ok.\n", pid);
+    yield();
+    yield();
+    yield();
 
-    cprintf("exit pass.\n");
+    cprintf("I am the parent.  Killing the child...\n");
+
+    assert((ret = kill(pid)) == 0);
+    cprintf("kill returns %d\n", ret);
+
+    assert((ret = waitpid(pid, NULL)) == 0);
+    cprintf("wait returns %d\n", ret);
+
+    cprintf("spin may pass.\n");
     return 0;
 }
 
